@@ -327,3 +327,29 @@ ls -la는 상세 정보와 숨김 항목을 포함해 목록을 표시한다.
 이름이 .으로 시작하는 항목은 기본 ls에서는 숨겨진다.
 
 검증 결과: 현재 위치, 원본 내용 유지, 디렉터리 권한 755 복구를 확인했다.
+
+### Git 첫 커밋 생성과 검증
+
+세 파일을 스테이징한 뒤 첫 커밋을 만들었다.
+
+```text
+$ git add README.md notes.txt permission-lab/sample.txt
+
+$ git commit -m "docs: 터미널 및 권한 실습 기록"
+[main (최상위-커밋) c76fd55] docs: 터미널 및 권한 실습 기록
+ 3 files changed, 332 insertions(+)
+ create mode 100644 README.md
+ create mode 100644 notes.txt
+ create mode 100644 permission-lab/sample.txt
+
+$ git log -1 --oneline
+c76fd55 (HEAD -> main) docs: 터미널 및 권한 실습 기록
+
+$ git status
+현재 브랜치 main
+커밋할 사항 없음, 작업 폴더 깨끗함
+```
+
+검증 결과: 첫 커밋에 세 파일이 기록됐고, 직후 미반영 변경은 없었다.
+이 커밋은 로컬에 저장됐으며 아직 GitHub에 업로드하지 않았다.
+커밋 식별자는 재현 시 달라질 수 있다.
