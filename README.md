@@ -33,9 +33,9 @@ Fedora KDE 환경에서 터미널, 파일 권한, Docker, Git/GitHub를 학습�
 - [x] 컨테이너 로그·리소스 사용량 확인
 - [x] hello-world 실행
 - [x] Ubuntu 컨테이너 내부 명령 및 attach/exec 차이 관찰
-- [ ] 웹 소스와 Dockerfile 직접 작성, 커스텀 이미지 빌드·실행
-- [ ] 포트 매핑 및 브라우저 접속 증거 기록
-- [ ] 바인드 마운트 변경 전후 비교
+- [x] 웹 소스와 Dockerfile 직접 작성, 커스텀 이미지 빌드·실행
+- [x] 포트 매핑 및 브라우저 접속 증거 기록
+- [x] 바인드 마운트 변경 전후 비교
 - [ ] 볼륨 데이터의 컨테이너 삭제 전후 영속성 검증
 - [ ] VSCode GitHub 로그인·저장소 연동
 - [x] 트러블슈팅 2건 이상 기록
@@ -646,3 +646,127 @@ main
 
 재현 시 user.name과 user.email은 본인의 정보를 사용한다.
 전역 설정은 현재 사용자에게 적용되며 저장소별 설정으로 덮어쓸 수 있다.
+
+### 바인드 마운트: 호스트 변경의 즉시 반영
+
+목적: 이미지에 COPY한 파일과 바인드 마운트로 연결한 파일의 차이를 확인한다.
+
+#### 1. COPY된 파일은 호스트 수정만으로 바뀌지 않음
+
+호스트 파일을 v1에서 v2로 수정한 뒤 비교했다.
+
+```text
+$ sed -i 's/페이지 버전: v1/페이지 버전: v2/' site/index.html
+
+$ cat site/index.html
+  <p>페이지 버전: v2</p>
+
+$ curl -sS http://127.0.0.1:8080
+  <p>페이지 버전: v1</p>
+```
+
+cat과 curl의 HTML 출력은 버전 줄만 발췌했다.
+기존 컨테이너는 빌드 시 이미지에 복사한 v1을 계속 제공했다.
+
+#### 2. 바인드 마운트 컨테이너 실행
+
+```bash
+docker run -d \
+  --name mission1-web-bind \
+  -p 127.0.0.1:8081:80 \
+  -v "$PWD/site:/usr/share/nginx/html:ro,Z" \
+  mission1-web:1.0
+```
+
+실행 결과:
+
+```text
+e64306b1fc24581fab2ab47dde36ccaafd9bc3f20a74809c92a1299b1e820c43
+```
+
+연결 후 응답에서 확인한 버전 줄:
+
+```text
+$ curl -sS http://127.0.0.1:8081
+  <p>페이지 버전: v2</p>
+```
+
+ro는 컨테이너에서 읽기 전용으로 연결하는 옵션이다.
+Z는 해당 호스트 폴더의 SELinux 라벨을 이 컨테이너용으로 조정한다.
+이번 실습에서는 프로젝트의 site 폴더에만 적용했다.
+
+#### 3. 재빌드·재시작 없이 변경 반영
+
+아래 cat과 curl 출력은 버전 줄만 발췌했다.
+
+```text
+$ sed -i 's/페이지 버전: v2/페이지 버전: v3/' site/index.html
+
+$ cat site/index.html
+  <p>페이지 버전: v3</p>
+
+$ curl -sS http://127.0.0.1:8081
+  <p>페이지 버전: v3</p>
+
+$ curl -sS http://127.0.0.1:8080
+  <p>페이지 버전: v1</p>
+```
+
+호스트 파일과 바인드 마운트側은 v3으로 바뀌었지만,
+기존 컨테이너는 v1을 유지했다.
+이미지를 다시 빌드하거나 컨테이너를 재시작하지 않았다.
+
+#### 4. 실제 연결 설정 검증
+
+```text
+$ docker inspect --format '{{range .Mounts}}Type={{.Type}} Source={{.Source}} Destination={{.Destination}} RW={{.RW}}{{println}}{{end}}' mission1-web-bind
+Type=bind Source=/home/suwan/Projects/mission1/site Destination=/usr/share/nginx/html RW=false
+```
+
+검증 결과: 호스트의 site 디렉터리가 컨테이너 웹 경로에
+읽기 전용 바인드 마운트로 연결된 것을 확인했다.
+호스트에서는 파일을 수정할 수 있으며, 컨테이너는 변경된 파일을 읽는다.
+연결 경로에서는 이미지에 있던 파일 대신 호스트 파일이 보인다.
+이미지 자체가 변경되는 것은 아니다.
+
+재현 시 프로젝트 루트에서 실행하고, 비교용 v1 이미지를 먼저 빌드한다.
+컨테이너 이름과 호스트 포트가 사용 중이지 않은지 확인한다.
+Source 경로와 컨테이너 ID는 실행 환경에 따라 달라진다.
+
+### 웹 서버 브라우저 접속 증거
+
+브라우저에서 http://127.0.0.1:8080 에 접속했다.
+주소창의 호스트 포트 8080과 페이지 버전 v1을 함께 확인했다.
+
+![8080 포트로 접속한 커스텀 NGINX 웹 페이지](docs/images/web-8080-v1.png)
+
+이 컨테이너는 mission1-web:1.0 이미지에 복사된 HTML을 제공한다.
+호스트의 8080 포트는 컨테이너의 80 포트에 연결돼 있다.
+
+### 커스텀 웹 이미지 빌드
+
+베이스 이미지: nginx:stable-alpine
+
+- LABEL: 이미지에 프로젝트 제목을 기록한다.
+- COPY: 직접 작성한 웹 파일을 NGINX 웹 경로에 복사한다.
+
+빌드 명령: `docker build --progress=plain -t mission1-web:1.1 .`
+
+검증: 종료 코드 0과 이미지 생성 완료 로그를 확인했다.
+
+[전체 빌드 로그](docs/logs/build-web-1.1.log)
+
+[Dockerfile](Dockerfile) / [웹 소스](site/index.html)
+
+1.0 이미지는 페이지 v1을 포함한다. 새로 빌드한 1.1 이미지는 페이지 v3을 포함하며, 아직 실행 검증 전이다.
+
+### 커스텀 이미지 1.1 실행 검증
+
+mission1-web:1.1 이미지로 mission1-web-1-1 컨테이너를 실행했다.
+호스트 8082 포트를 컨테이너 80 포트에 연결했다.
+바인드 마운트 없이 HTTP 200 OK와 페이지 v3 응답을 확인했다.
+앞선 빌드 항목에서 실행 검증 전이라고 기록한 상태를 이번 실험으로 검증 완료했다.
+
+[실행 명령·컨테이너 ID·HTTP 응답](docs/logs/run-web-1.1.log)
+
+로그 저장 참고: run-web-1.1.log는 curl 응답을 수집한 뒤 문서용으로 줄 끝의 CR을 제거해 LF 형식으로 정리했다.
