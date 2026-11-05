@@ -40,7 +40,7 @@ Fedora KDE 환경에서 터미널, 파일 권한, Docker, Git/GitHub를 학습�
 - [x] VSCode GitHub 로그인·저장소 연동
 - [x] 트러블슈팅 2건 이상 기록
 - [x] README의 검증 절차·증거 링크·재현성·민감정보 점검
-- [ ] GitHub 저장소 링크로 최종 결과 제출
+- [x] GitHub 저장소 링크로 최종 결과 제출
 
 ### 보너스 과제
 
