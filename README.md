@@ -37,7 +37,7 @@ Fedora KDE 환경에서 터미널, 파일 권한, Docker, Git/GitHub를 학습�
 - [x] 포트 매핑 및 브라우저 접속 증거 기록
 - [x] 바인드 마운트 변경 전후 비교
 - [x] 볼륨 데이터의 컨테이너 삭제 전후 영속성 검증
-- [ ] VSCode GitHub 로그인·저장소 연동
+- [x] VSCode GitHub 로그인·저장소 연동
 - [x] 트러블슈팅 2건 이상 기록
 - [ ] README의 검증 절차·증거 링크·재현성·민감정보 점검
 - [ ] GitHub 저장소 링크로 최종 결과 제출
@@ -48,7 +48,7 @@ Fedora KDE 환경에서 터미널, 파일 권한, Docker, Git/GitHub를 학습�
 - [x] Compose 멀티 컨테이너 실행 및 서비스 간 통신 검증
 - [x] Compose up/down/ps/logs 사용
 - [x] 환경 변수로 서버 포트 또는 모드 변경 및 검증
-- [ ] GitHub SSH 키 설정 및 SSH로 푸시
+- [x] GitHub SSH 키 설정 및 SSH로 푸시
 
 ## 검증 기록
 
@@ -979,3 +979,42 @@ HTML을 수정하지 않고 실행 설정으로 서버 포트를 변경했다.
 현재 멀티 서비스 구성의 내부 접속 주소는 http://web:8080이다.
 앞선 멀티 컨테이너 로그의 http://web:80은 포트 변경 전 기록이다.
 현재 구성을 재현할 때는 이 항목의 포트와 명령을 사용한다.
+
+### GitHub 연결과 SSH 업로드 검증
+
+제출 저장소: https://github.com/psw9631/mission1-workstation
+
+기존 SSH 키를 사용했으며, 개인키와 암호는 저장소에 포함하지 않았다.
+아래 출력은 핵심 부분을 발췌했다.
+
+```text
+$ ssh -T git@github.com
+Hi psw9631! You've successfully authenticated, but GitHub does not provide shell access.
+
+$ git remote -v
+origin  git@github.com:psw9631/mission1-workstation.git (fetch)
+origin  git@github.com:psw9631/mission1-workstation.git (push)
+
+$ git push -u origin main
+To github.com:psw9631/mission1-workstation.git
+ * [new branch]      main -> main
+branch 'main' set up to track 'origin/main'.
+
+$ git status
+현재 브랜치 main
+브랜치가 'origin/main'에 맞게 업데이트된 상태입니다.
+
+커밋할 사항 없음, 작업 폴더 깨끗함
+```
+
+검증 결과: SSH 인증 후 로컬 커밋 이력을 GitHub에 업로드했다.
+-u 옵션으로 추적 관계를 설정했다.
+git status 확인 시 로컬 main과 origin/main이 일치했다.
+
+### VSCode GitHub 계정 및 저장소 연동
+
+VSCode에서 mission1 프로젝트를 열고 main 브랜치와 변경 상태를 확인했다.
+계정 메뉴에서 psw9631 (GitHub) 로그인을 확인했다.
+원격 저장소 연결과 SSH 푸시 결과는 앞선 GitHub 검증 항목에 기록했다.
+
+![VSCode 프로젝트·GitHub 계정·main 브랜치 확인](docs/images/vscode-github.png)
