@@ -44,9 +44,9 @@ Fedora KDE 환경에서 터미널, 파일 권한, Docker, Git/GitHub를 학습�
 
 ### 보너스 과제
 
-- [ ] Compose 단일 서비스 실행
-- [ ] Compose 멀티 컨테이너 실행 및 서비스 간 통신 검증
-- [ ] Compose up/down/ps/logs 사용
+- [x] Compose 단일 서비스 실행
+- [x] Compose 멀티 컨테이너 실행 및 서비스 간 통신 검증
+- [x] Compose up/down/ps/logs 사용
 - [ ] 환경 변수로 서버 포트 또는 모드 변경 및 검증
 - [ ] GitHub SSH 키 설정 및 SSH로 푸시
 
@@ -837,3 +837,109 @@ Type=volume Name=mission1-data Destination=/data
 컨테이너 ID는 실행마다 달라진다.
 데이터는 볼륨이 연결된 /data 아래에 기록해야 한다.
 볼륨 자체를 삭제하면 데이터도 잃을 수 있으므로 이 실험에서는 유지한다.
+
+### Compose 단일 서비스와 운영 명령
+
+docker-compose.yml에 이미지와 포트 연결을 선언했다.
+긴 실행 명령을 파일로 보관하여 같은 설정으로 다시 실행할 수 있다.
+
+[Compose 설정 파일](docker-compose.yml)
+
+#### 실행과 접속 검증
+
+아래 출력은 핵심 항목만 발췌했다.
+
+```text
+$ docker compose -f docker-compose.yml config
+name: mission1
+```
+
+설정 해석에 성공했고, web 서비스의 이미지와 포트 설정을 확인했다.
+
+```text
+$ docker compose -f docker-compose.yml up -d
+Network mission1_default Created
+Container mission1-web-1 Started
+
+$ docker compose -f docker-compose.yml ps
+```
+
+ps 결과에서 서비스 web, 이미지 mission1-web:1.1,
+실행 상태 Up, 포트 127.0.0.1:8083->80/tcp를 확인했다.
+
+```text
+$ curl -i http://127.0.0.1:8083
+HTTP/1.1 200 OK
+```
+
+응답 본문에서 페이지 버전 v3을 확인했다.
+
+#### 로그 조회
+
+최근 로그 10줄을 조회했으며, 아래는 요청 기록의 발췌다.
+
+```text
+$ docker compose -f docker-compose.yml logs --tail 10 web
+web-1  | 172.18.0.1 - - [05/Nov/2026:06:56:11 +0000] "GET / HTTP/1.1" 200 357 "-" "curl/8.21.0" "-"
+```
+
+페이지 요청은 200으로 성공했다.
+별도 favicon.ico 요청은 파일이 없어 404를 반환했다.
+요청 경로별로 결과를 구분해야 하며, 이 404는 페이지 요청 실패를 뜻하지 않는다.
+
+#### 종료와 제거 확인
+
+아래 down 출력은 진행 표시와 소요 시간을 생략했다.
+
+```text
+$ docker compose -f docker-compose.yml down
+Container mission1-web-1 Removed
+Network mission1_default Removed
+
+$ docker compose -f docker-compose.yml ps -a
+NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
+```
+
+검증 결과: up으로 실행하고 ps와 HTTP 응답으로 상태를 확인했다.
+logs로 요청 기록을 조회했으며, down 후 서비스 컨테이너와
+기본 네트워크가 제거된 것을 확인했다.
+
+재현 조건: 로컬에 mission1-web:1.1 이미지를 먼저 빌드하고
+호스트 8083 포트가 비어 있는 상태에서 프로젝트 루트에서 실행한다.
+컨테이너 이름, 네트워크 이름, 시각과 로그 세부 내용은 달라질 수 있다.
+
+### Compose 멀티 컨테이너 통신 검증
+
+웹 서버 web과 보조 서비스 toolbox를 같은 Compose 기본 네트워크에서 실행했다.
+
+구성 파일:
+- [단일 서비스 설정](docker-compose.single.yml)
+- [멀티 서비스 설정](docker-compose.yml)
+- [보조 서비스 Dockerfile](Dockerfile.toolbox)
+
+보조 서비스는 Ubuntu 기반 이미지에 curl을 설치하여 빌드했다.
+따라서 컨테이너를 새로 생성해도 수동 설치 없이 HTTP 요청을 보낼 수 있다.
+
+빌드 및 실행 명령: `docker compose -f docker-compose.yml up -d --build`
+
+검증 결과:
+- web은 mission1-web:1.1, toolbox는 mission1-toolbox:1.0 이미지로 실행됐다.
+- toolbox에서 getent hosts web으로 웹 서비스의 주소를 조회했다.
+- toolbox에서 http://web:80으로 요청하여 HTTP 200 OK와 페이지 v3을 확인했다.
+- 호스트의 8083 포트를 거치지 않고 컨테이너 네트워크로 통신했다.
+
+[서비스 상태·이름 조회·HTTP 응답 로그](docs/logs/compose-multi.log)
+
+서비스 이름 web은 통신에 사용하지만, 컨테이너 IP는 재생성 시 달라질 수 있다.
+컨테이너 안의 localhost는 해당 컨테이너 자신을 가리킨다.
+
+로그의 HTTP 줄바꿈은 수집 후 문서용 LF 형식으로 정리했다.
+
+재현 순서:
+1. 프로젝트 루트에서 mission1-web:1.1 이미지를 먼저 빌드한다.
+2. 호스트 8083 포트가 비어 있는지 확인한다.
+3. 위 Compose 빌드 및 실행 명령을 수행한다.
+4. 로그에 기록된 ps, getent, curl 명령으로 검증한다.
+
+단일 서비스 실습만 재현할 때는 docker-compose.single.yml을 사용한다.
+두 구성은 같은 프로젝트 이름을 사용하므로 한 구성을 down한 뒤 다른 구성을 실행한다.

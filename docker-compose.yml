@@ -1,0 +1,11 @@
+services:
+  web:
+    image: mission1-web:1.1
+    ports:
+      - "127.0.0.1:8083:80"
+
+  toolbox:
+    build:
+      context: .
+      dockerfile: Dockerfile.toolbox
+    image: mission1-toolbox:1.0
