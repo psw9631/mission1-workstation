@@ -13,7 +13,7 @@ Fedora KDE 환경에서 터미널, 파일 권한, Docker, Git/GitHub를 학습�
 - 작업 경로: ~/Projects/mission1
 - Docker 버전: 29.9.3
 - Git 버전: 2.56.0
-- 터미널 프로그램: 추후 확인
+- 터미널 프로그램: Konsole
 
 작업 경로의 `~`는 각 사용자의 홈 디렉터리를 뜻한다.
 
@@ -39,7 +39,7 @@ Fedora KDE 환경에서 터미널, 파일 권한, Docker, Git/GitHub를 학습�
 - [x] 볼륨 데이터의 컨테이너 삭제 전후 영속성 검증
 - [x] VSCode GitHub 로그인·저장소 연동
 - [x] 트러블슈팅 2건 이상 기록
-- [ ] README의 검증 절차·증거 링크·재현성·민감정보 점검
+- [x] README의 검증 절차·증거 링크·재현성·민감정보 점검
 - [ ] GitHub 저장소 링크로 최종 결과 제출
 
 ### 보너스 과제
@@ -843,7 +843,7 @@ Type=volume Name=mission1-data Destination=/data
 docker-compose.yml에 이미지와 포트 연결을 선언했다.
 긴 실행 명령을 파일로 보관하여 같은 설정으로 다시 실행할 수 있다.
 
-[Compose 설정 파일](docker-compose.yml)
+[Compose 단일 서비스 설정 파일](docker-compose.single.yml)
 
 #### 실행과 접속 검증
 
@@ -1018,3 +1018,66 @@ VSCode에서 mission1 프로젝트를 열고 main 브랜치와 변경 상태를 
 원격 저장소 연결과 SSH 푸시 결과는 앞선 GitHub 검증 항목에 기록했다.
 
 ![VSCode 프로젝트·GitHub 계정·main 브랜치 확인](docs/images/vscode-github.png)
+
+## 현재 구성의 빠른 재현 절차
+
+앞선 실습 기록은 당시 이미지·포트·파일 상태를 설명한다.
+현재 저장소를 새로 내려받아 실행할 때는 이 절차를 기준으로 한다.
+과거 기록의 명령을 처음부터 모두 실행할 필요는 없다.
+
+### 준비 조건
+
+- Git, Docker Engine과 Docker Compose 플러그인이 설치돼 있어야 한다.
+- 현재 사용자가 Docker 데몬에 접근할 수 있어야 한다.
+- 최초 빌드에는 베이스 이미지와 패키지를 받을 인터넷 연결이 필요하다.
+- 호스트의 8083 포트가 비어 있어야 한다.
+
+공개 저장소이므로 다운로드에는 GitHub 인증이 필요하지 않다.
+
+```bash
+git clone https://github.com/psw9631/mission1-workstation.git
+cd mission1-workstation
+```
+
+### 멀티 서비스 실행
+
+```bash
+docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml ps
+docker compose -f docker-compose.yml exec -T toolbox curl -sS -i http://web:8080
+curl -sS -i http://127.0.0.1:8083
+```
+
+브라우저 접속 주소: http://127.0.0.1:8083
+
+예상 결과:
+- web과 toolbox 서비스가 실행된다.
+- 내부 요청과 호스트 요청에 HTTP 200 OK 및 페이지 v3이 반환된다.
+- web은 환경 변수 WEB_PORT=8080으로 내부 8080 포트를 사용한다.
+
+```bash
+docker compose -f docker-compose.yml logs --tail 20
+docker compose -f docker-compose.yml down
+```
+
+### 단일 서비스 실행
+
+멀티 서비스가 종료돼 호스트 8083 포트가 비어 있는 상태에서 실행한다.
+
+```bash
+docker compose -p mission1-single -f docker-compose.single.yml up -d --build
+docker compose -p mission1-single -f docker-compose.single.yml ps
+curl -sS -i http://127.0.0.1:8083
+docker compose -p mission1-single -f docker-compose.single.yml down
+```
+
+현재 단일 서비스는 이전의 로컬 1.1 이미지에 의존하지 않는다.
+현재 Dockerfile로 빌드하며 WEB_PORT=80을 전달한다.
+단일·멀티 구성은 같은 호스트 8083 포트를 사용하므로 동시에 실행하지 않는다.
+명령은 반드시 해당 저장소의 루트 디렉터리에서 실행한다.
+
+### 재현성의 범위
+
+이 절차는 빌드와 실행 방법의 재현을 목표로 한다.
+베이스 이미지 태그와 패키지 버전은 시간이 지나면 달라질 수 있으므로,
+다른 시점의 빌드 결과가 바이트 단위로 동일하다고 보장하지 않는다.
