@@ -36,7 +36,7 @@ Fedora KDE 환경에서 터미널, 파일 권한, Docker, Git/GitHub를 학습�
 - [x] 웹 소스와 Dockerfile 직접 작성, 커스텀 이미지 빌드·실행
 - [x] 포트 매핑 및 브라우저 접속 증거 기록
 - [x] 바인드 마운트 변경 전후 비교
-- [ ] 볼륨 데이터의 컨테이너 삭제 전후 영속성 검증
+- [x] 볼륨 데이터의 컨테이너 삭제 전후 영속성 검증
 - [ ] VSCode GitHub 로그인·저장소 연동
 - [x] 트러블슈팅 2건 이상 기록
 - [ ] README의 검증 절차·증거 링크·재현성·민감정보 점검
@@ -770,3 +770,70 @@ mission1-web:1.1 이미지로 mission1-web-1-1 컨테이너를 실행했다.
 [실행 명령·컨테이너 ID·HTTP 응답](docs/logs/run-web-1.1.log)
 
 로그 저장 참고: run-web-1.1.log는 curl 응답을 수집한 뒤 문서용으로 줄 끝의 CR을 제거해 LF 형식으로 정리했다.
+
+### Docker 볼륨 영속성 검증
+
+목적: 컨테이너를 삭제한 뒤 새 컨테이너에 같은 볼륨을 연결하여 데이터가 유지되는지 확인한다.
+
+#### 1. 볼륨 생성과 확인
+
+```text
+$ docker volume create mission1-data
+mission1-data
+
+$ docker volume inspect --format 'Name={{.Name}} Driver={{.Driver}}' mission1-data
+Name=mission1-data Driver=local
+```
+
+#### 2. 컨테이너 A에서 데이터 기록
+
+```text
+$ docker run -d --name mission1-volume-a --mount type=volume,source=mission1-data,target=/data ubuntu:24.04 sleep infinity
+97cc17d80ea39475974ed20d220c8b4a23a603c21321eef41d341719190eb1ff
+
+$ docker exec mission1-volume-a sh -c 'printf "Written by container A\n" > /data/mission1-proof.txt'
+
+$ docker exec mission1-volume-a cat /data/mission1-proof.txt
+Written by container A
+```
+
+볼륨을 컨테이너의 /data에 연결하고 그 안에 파일을 기록했다.
+
+#### 3. 컨테이너 A 삭제 확인
+
+```text
+$ docker stop mission1-volume-a
+mission1-volume-a
+
+$ docker rm mission1-volume-a
+mission1-volume-a
+
+$ docker ps -a --filter name=mission1-volume-a
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+
+컨테이너 A는 삭제했지만 볼륨은 삭제하지 않았다.
+
+#### 4. 새 컨테이너 B에서 기존 데이터 확인
+
+```text
+$ docker run -d --name mission1-volume-b --mount type=volume,source=mission1-data,target=/data ubuntu:24.04 sleep infinity
+81b15e7b7edfe199e4a6cee22864f682b6d73155b67b416d2a928d59dd905a5b
+
+$ docker exec mission1-volume-b cat /data/mission1-proof.txt
+Written by container A
+
+$ docker inspect --format '{{range .Mounts}}Type={{.Type}} Name={{.Name}} Destination={{.Destination}}{{println}}{{end}}' mission1-volume-b
+Type=volume Name=mission1-data Destination=/data
+```
+
+검증 결과:
+- A와 B의 컨테이너 ID가 다르므로 서로 다른 컨테이너다.
+- B에서 파일을 새로 쓰지 않고 A가 기록한 내용을 읽었다.
+- B에 같은 mission1-data 볼륨이 연결된 것을 확인했다.
+- 따라서 볼륨 데이터는 컨테이너 A의 삭제 후에도 유지됐다.
+
+재현 시 컨테이너 이름이 사용 중이지 않은 환경에서 수행한다.
+컨테이너 ID는 실행마다 달라진다.
+데이터는 볼륨이 연결된 /data 아래에 기록해야 한다.
+볼륨 자체를 삭제하면 데이터도 잃을 수 있으므로 이 실험에서는 유지한다.
