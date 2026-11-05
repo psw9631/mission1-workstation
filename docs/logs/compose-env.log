@@ -1,0 +1,38 @@
+$ docker compose -f docker-compose.yml exec -T web printenv WEB_PORT
+8080
+
+$ docker compose -f docker-compose.yml exec -T web cat /etc/nginx/conf.d/default.conf
+server {
+    listen 8080;
+    server_name localhost;
+
+    location / {
+        root /usr/share/nginx/html;
+        index index.html;
+    }
+}
+
+$ docker compose -f docker-compose.yml exec -T toolbox curl -sS -i http://web:8080
+HTTP/1.1 200 OK
+Server: nginx/1.30.6
+Date: Thu, 05 Nov 2026 07:29:18 GMT
+Content-Type: text/html
+Content-Length: 357
+Last-Modified: Thu, 05 Nov 2026 06:25:56 GMT
+Connection: keep-alive
+ETag: "6aec2174-165"
+Accept-Ranges: bytes
+
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>나의 미션 1 웹 서버</title>
+</head>
+<body>
+  <h1>직접 만든 첫 컨테이너 웹 페이지</h1>
+  <p>Fedora KDE에서 Docker를 배우고 있습니다.</p>
+  <p>페이지 버전: v3</p>
+</body>
+</html>

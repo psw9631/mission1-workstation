@@ -47,7 +47,7 @@ Fedora KDE 환경에서 터미널, 파일 권한, Docker, Git/GitHub를 학습�
 - [x] Compose 단일 서비스 실행
 - [x] Compose 멀티 컨테이너 실행 및 서비스 간 통신 검증
 - [x] Compose up/down/ps/logs 사용
-- [ ] 환경 변수로 서버 포트 또는 모드 변경 및 검증
+- [x] 환경 변수로 서버 포트 또는 모드 변경 및 검증
 - [ ] GitHub SSH 키 설정 및 SSH로 푸시
 
 ## 검증 기록
@@ -943,3 +943,39 @@ logs로 요청 기록을 조회했으며, down 후 서비스 컨테이너와
 
 단일 서비스 실습만 재현할 때는 docker-compose.single.yml을 사용한다.
 두 구성은 같은 프로젝트 이름을 사용하므로 한 구성을 down한 뒤 다른 구성을 실행한다.
+
+### 환경 변수로 NGINX 포트 변경
+
+변경 전에는 컨테이너 내부 80 포트에서 웹 페이지를 제공했다.
+이번에는 Compose에서 WEB_PORT=8080을 전달하여 내부 포트를 변경했다.
+호스트 접속 포트는 8083으로 유지하고 매핑 대상을 8080으로 바꿨다.
+
+구성 파일:
+- [NGINX 설정 템플릿](nginx/templates/default.conf.template)
+- [템플릿을 포함하는 Dockerfile](Dockerfile)
+- [환경 변수와 포트 매핑을 지정한 Compose 설정](docker-compose.yml)
+
+동작 원리:
+1. Dockerfile이 설정 템플릿을 이미지에 복사한다.
+2. 컨테이너 시작 시 NGINX 이미지의 시작 스크립트가 환경 변수 값을 치환한다.
+3. 생성된 설정의 listen 8080에 따라 NGINX가 요청을 받는다.
+
+빌드 및 실행 명령: `docker compose -f docker-compose.yml up -d --build`
+
+검증 결과:
+- printenv WEB_PORT 출력: 8080
+- 생성된 NGINX 설정: listen 8080;
+- toolbox에서 http://web:8080 요청: HTTP 200 OK, 페이지 v3
+- 호스트에서 http://127.0.0.1:8083 요청: HTTP 200 OK, 페이지 v3
+
+[환경 변수·생성된 설정·내부 HTTP 응답 증거](docs/logs/compose-env.log)
+
+환경 변수는 서버의 수신 포트를 설정하고, 포트 매핑은 호스트에서
+그 포트로 연결한다. 두 설정은 역할이 다르며 대상 포트가 일치해야 한다.
+HTML을 수정하지 않고 실행 설정으로 서버 포트를 변경했다.
+
+로그의 HTTP 줄바꿈은 수집 후 문서용 LF 형식으로 정리했다.
+
+현재 멀티 서비스 구성의 내부 접속 주소는 http://web:8080이다.
+앞선 멀티 컨테이너 로그의 http://web:80은 포트 변경 전 기록이다.
+현재 구성을 재현할 때는 이 항목의 포트와 명령을 사용한다.
